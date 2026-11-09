@@ -1,0 +1,15 @@
+
+# User-uploaded private documents
+uploaded_docs/
+storage/
+static/uploaded_docs/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+
+# Environment variables and secrets
+.env
