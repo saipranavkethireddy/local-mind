@@ -135,5 +135,3 @@ LocalMind follows a local-first architecture:
 LocalMind demonstrates how modern AI-powered document intelligence can be implemented without compromising user privacy.
 
 By combining local LLM inference, automated PII redaction, and a lightweight web interface, it aims to make private AI document processing accessible on consumer hardware.
-
-**Built for the Lenovo AI Challenge.**
