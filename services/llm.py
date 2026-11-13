@@ -1,7 +1,10 @@
+import os
 import httpx
 import json
 
-OLLAMA_HOST = "http://localhost:11434/api/generate"
+# Fallback to 'ollama' container service name if OLLAMA_HOST environment variable isn't set
+BASE_OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://ollama:11434")
+OLLAMA_HOST = f"{BASE_OLLAMA_URL}/api/generate"
 DEFAULT_MODEL = "llama3"
 
 class LocalLLMEngine:
