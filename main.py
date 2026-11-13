@@ -1,3 +1,7 @@
+import json
+
+from urllib.parse import quote
+from fastapi.responses import StreamingResponse
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -111,6 +115,19 @@ async def query_documents(req: QueryRequest):
         "sources_detailed": sources,
         "stats": answer.get("stats")
     }
+
+@app.post("/api/query/stream")
+async def query_documents_stream(req: QueryRequest):
+    _check_model(req.model)
+    if not RETRIEVER:
+        raise HTTPException(400, "No documents ingested yet. Please upload a file first.")
+    context, sources = _retrieve(req.query)
+    headers = {"X-Sources": quote(json.dumps(sources)), "Cache-Control": "no-store"}
+    return StreamingResponse(
+        LocalLLMEngine.stream_response(req.query, context, req.model),
+        media_type="text/plain; charset=utf-8",
+        headers=headers,
+    )
 
 @app.get("/api/documents")
 async def list_documents():

@@ -51,6 +51,30 @@ class LocalLLMEngine:
         except httpx.HTTPStatusError as e:
             raise HTTPException(502, f"Ollama returned {e.response.status_code}. Is the model pulled?")
         return {"text": data["message"]["content"], "stats": _stats(data)}
+    
+    @staticmethod
+    async def stream_response(question: str, context: str, model: str = DEFAULT_MODEL) -> AsyncIterator[str]:
+        """Yields text pieces as generated. Errors are yielded as text because the HTTP
+        status can't change once streaming has begun."""
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                async with client.stream(
+                    "POST", f"{OLLAMA_URL}/api/chat", json=_payload(question, context, model, True)
+                ) as r:
+                    if r.status_code != 200:
+                        yield f"\n[Error: Ollama returned {r.status_code}. Is the model pulled?]"
+                        return
+                    async for line in r.aiter_lines():
+                        if not line:
+                            continue
+                        obj = json.loads(line)
+                        piece = obj.get("message", {}).get("content", "")
+                        if piece:
+                            yield piece
+        except httpx.ConnectError:
+            yield "[Error: Ollama is not running on this machine.]"
+        except httpx.TimeoutException:
+            yield "\n[Error: the local model took too long to respond.]"
 
 
 def _stats(d: dict) -> dict:

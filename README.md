@@ -6,6 +6,46 @@
 
 ---
 
+## 🚀 Quick start
+
+```bash
+# 1. Install Ollama (https://ollama.com) and pull the model once (needs internet)
+ollama pull llama3
+
+# 2. Install and run
+python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+# open http://localhost:8000
+```
+
+After the one-time model download, everything runs offline.
+
+## 🛡️ What gets redacted (and what doesn't)
+
+Redacted automatically before any text reaches the model: email addresses, Indian
+mobile numbers, Luhn-valid card numbers, Aadhaar-format IDs, PAN numbers.
+
+**Not** detected: names, postal addresses, dates of birth, passport numbers.
+Regex cannot reliably find these. Treat redaction as a safety net, not a guarantee.
+
+## ⚙️ How answers are produced
+
+Documents are split into ~900-character chunks, the most relevant chunks for each
+question are found with BM25, and only those are sent to the local model together with
+their source file names. Answers show the passages they came from.
+
+## 📊 Measured performance
+
+(paste the output of `python benchmark.py` here, with your machine model)
+
+## 🧪 Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
 ## 💡 The Motivation
 
 Modern productivity tools and document assistants often require users to upload confidential documents, such as resumes, financial records, academic transcripts, and proprietary reports, to third-party cloud servers.
