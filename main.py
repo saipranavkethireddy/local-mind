@@ -10,11 +10,21 @@ from pathlib import Path
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-
-
 from services.parser import DocumentParser
 from services.llm import LocalLLMEngine
 from services.redaction import PIIRedactor
+from services.hybrid import HybridRetriever
+from services.retriever import build_context
+
+
+RETRIEVER = HybridRetriever()
+TOP_K = 5
+
+async def _retrieve(query: str):
+    """Performs hybrid search and builds context with source tracing."""
+    chunks = await RETRIEVER.search_hybrid(query, k=TOP_K)
+    sources = [{"file": c.doc, "part": c.index + 1, "snippet": c.text[:200]} for c in chunks]
+    return build_context(chunks), sources
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}  # <- set to what DocumentParser supports
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -68,28 +78,51 @@ async def ingest_document(file: UploadFile = File(...)):
             raise HTTPException(400, "Could not read this file. Is it a valid, non-encrypted document?")
 
     redacted_text, count = PIIRedactor.redact_text(parsed_text)
-    DOCUMENT_STORE[display_name] = redacted_text
-    return {"status": "success", "filename": display_name, "pii_redactions_made": count}
+    n_chunks, embedded = await RETRIEVER.add_document_async(display_name, redacted_text)
+    return {
+        "status": "success",
+        "filename": display_name,
+        "pii_redactions_made": count,
+        "chunks": n_chunks,
+        "semantic_search": embedded,
+    }
 
 @app.post("/api/query")
 async def query_documents(req: QueryRequest):
     _check_model(req.model)
 
-    if not DOCUMENT_STORE:
-        return {"response": "No documents currently ingested in the local workspace. Please upload files first.", "sources_used": []}
+    if not RETRIEVER.chunks:
+        return {
+            "response": "No documents currently ingested in the local workspace. Please upload files first.", 
+            "sources_used": []
+        }
     
-    combined_context = "\n\n".join([f"=== File: {fname} ===\n{content}" for fname, content in DOCUMENT_STORE.items()])
-    answer = await LocalLLMEngine.generate_response(req.query, combined_context, req.model)
-    return {"response": answer, "sources_used": list(DOCUMENT_STORE.keys())}
+    # Retrieve top-k hybrid chunks and build context dynamically
+    context, sources = await _retrieve(req.query)
+    
+    answer = await LocalLLMEngine.generate_response(req.query, context, req.model)
+    
+    # Extract unique filenames used in the sources
+    unique_files = list({s["file"] for s in sources})
+    
+    return {
+        "response": answer["text"], 
+        "sources_used": unique_files,
+        "sources_detailed": sources,
+        "stats": answer.get("stats")
+    }
+
+@app.get("/api/documents")
+async def list_documents():
+    # Extract unique document names from the retriever chunks
+    doc_names = list({chunk.doc for chunk in RETRIEVER.chunks})
+    return {"documents": doc_names}
 
 @app.post("/api/redact")
 async def redact_text_endpoint(req: RedactRequest):
     cleaned_text, count = PIIRedactor.redact_text(req.text)
     return {"redacted_text": cleaned_text, "redactions_count": count}
 
-@app.get("/api/documents")
-async def list_documents():
-    return {"documents": list(DOCUMENT_STORE.keys())}
 
 # Mount static frontend
 app.mount("/static", StaticFiles(directory="static"), name="static")
