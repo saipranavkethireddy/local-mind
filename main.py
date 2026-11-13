@@ -121,7 +121,7 @@ async def query_documents_stream(req: QueryRequest):
     _check_model(req.model)
     if not RETRIEVER:
         raise HTTPException(400, "No documents ingested yet. Please upload a file first.")
-    context, sources = _retrieve(req.query)
+    context, sources = await _retrieve(req.query)
     headers = {"X-Sources": quote(json.dumps(sources)), "Cache-Control": "no-store"}
     return StreamingResponse(
         LocalLLMEngine.stream_response(req.query, context, req.model),
