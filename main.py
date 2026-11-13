@@ -73,6 +73,8 @@ async def ingest_document(file: UploadFile = File(...)):
 
 @app.post("/api/query")
 async def query_documents(req: QueryRequest):
+    _check_model(req.model)
+
     if not DOCUMENT_STORE:
         return {"response": "No documents currently ingested in the local workspace. Please upload files first.", "sources_used": []}
     
@@ -98,4 +100,4 @@ async def read_index():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
