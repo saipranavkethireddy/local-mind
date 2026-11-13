@@ -2,12 +2,15 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import os
 import tempfile
 import uuid
 from pathlib import Path
 from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+
 
 from services.parser import DocumentParser
 from services.llm import LocalLLMEngine
@@ -18,22 +21,29 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 app = FastAPI(title="LocalMind AI Workbench", version="1.0.0")
 
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
+
+ALLOWED_MODELS = {m.strip() for m in os.getenv("LOCALMIND_MODELS", "llama3").split(",")}
 
 DOCUMENT_STORE = {}
 
 class QueryRequest(BaseModel):
-    query: str
+    query: str = Field(min_length=1, max_length=2000)
     model: str = "llama3"
 
 class RedactRequest(BaseModel):
-    text: str
+    text: str = Field(max_length=200_000)
+
+def _check_model(model: str) -> None:
+    if model not in ALLOWED_MODELS:
+        raise HTTPException(400, f"Model not allowed. Choose one of: {sorted(ALLOWED_MODELS)}")
 
 @app.post("/api/ingest")
 async def ingest_document(file: UploadFile = File(...)):
