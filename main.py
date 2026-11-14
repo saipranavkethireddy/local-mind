@@ -22,15 +22,29 @@ from services.retriever import build_context
 
 
 RETRIEVER = HybridRetriever()
-TOP_K = 5
+TOP_K = int(os.getenv("LOCALMIND_TOP_K", "4"))
+# Small workspaces are sent to the model whole, so questions like "how many questions are
+# there?" or "what is the first question?" can be answered. Set to 0 to always use retrieval.
+FULLDOC_WORDS = int(os.getenv("LOCALMIND_FULLDOC_WORDS", "1800"))
+
+NOTE_FULL = "[You can see the COMPLETE text of every uploaded document below.]"
+NOTE_PART = (
+    "[You can see ONLY the most relevant excerpts below. The rest of the document is not shown, "
+    "so you cannot count items, list everything, or tell which item is first or last.]"
+)
 
 async def _retrieve(query: str):
-    """Performs hybrid search and builds context with source tracing."""
+    """Whole documents when the workspace is small, otherwise hybrid search. Returns (context, sources)."""
+    total = RETRIEVER.total_words()
+    if 0 < total <= FULLDOC_WORDS:
+        context, sources = RETRIEVER.full_context()
+        return f"{NOTE_FULL}\n\n{context}", sources
+
     chunks = await RETRIEVER.search_hybrid(query, k=TOP_K)
     sources = [{"file": c.doc, "part": c.index + 1, "snippet": c.text[:200]} for c in chunks]
-    return build_context(chunks), sources
+    return f"{NOTE_PART}\n\n{build_context(chunks)}", sources
 
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}  # <- set to what DocumentParser supports
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".txt", ".md"}  # keep in sync with DocumentParser
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 app = FastAPI(title="LocalMind AI Workbench", version="1.0.0")
@@ -78,6 +92,8 @@ async def ingest_document(file: UploadFile = File(...)):
                 buf.write(chunk)
         try:
             parsed_text = await run_in_threadpool(DocumentParser.parse_file, str(tmp_path))
+        except ValueError as e:  # e.g. scanned PDF with no text: the message is safe to show
+            raise HTTPException(400, str(e))
         except Exception:
             raise HTTPException(400, "Could not read this file. Is it a valid, non-encrypted document?")
 
@@ -119,7 +135,7 @@ async def query_documents(req: QueryRequest):
 @app.post("/api/query/stream")
 async def query_documents_stream(req: QueryRequest):
     _check_model(req.model)
-    if not RETRIEVER:
+    if not RETRIEVER.chunks:
         raise HTTPException(400, "No documents ingested yet. Please upload a file first.")
     context, sources = await _retrieve(req.query)
     headers = {"X-Sources": quote(json.dumps(sources)), "Cache-Control": "no-store"}
@@ -150,4 +166,4 @@ async def read_index():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)

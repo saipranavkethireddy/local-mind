@@ -258,6 +258,7 @@
 
       .file-status {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
         gap: 0.5rem;
@@ -511,6 +512,92 @@
         outline-offset: 2px;
       }
 
+      /* ---------- Uploads and sources ---------- */
+      .file-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .file-status.busy .tag {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      .file-status.failed {
+        color: var(--red-300);
+        background: rgba(239, 68, 68, 0.1);
+        border-color: rgba(239, 68, 68, 0.3);
+      }
+
+      .file-status.failed .tag {
+        color: var(--red-300);
+        background: rgba(239, 68, 68, 0.2);
+      }
+
+      .file-note {
+        flex-basis: 100%;
+        font-family: var(--font-sans);
+        font-size: 0.7rem;
+        line-height: 1.4;
+        color: var(--muted);
+      }
+
+      .file-status.failed .file-note {
+        color: var(--red-300);
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-width: 0;
+        max-width: 42rem;
+      }
+
+      .stack .bubble {
+        max-width: 100%;
+      }
+
+      .sources {
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .sources summary {
+        width: fit-content;
+        cursor: pointer;
+        font-family: var(--font-mono);
+        color: var(--em-400);
+      }
+
+      .sources ul {
+        list-style: none;
+        margin-top: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .sources li {
+        padding: 0.625rem;
+        border-radius: 0.5rem;
+        background: rgba(24, 24, 27, 0.4);
+        border: 1px solid rgba(39, 39, 42, 0.6);
+      }
+
+      .src-name {
+        display: block;
+        margin-bottom: 0.25rem;
+        font-family: var(--font-mono);
+        color: var(--text-3);
+      }
+
+      .src-snip {
+        display: block;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+
       /* ---------- Breakpoints ---------- */
       @media (max-width: 639px) {
         .hide-sm {
@@ -597,14 +684,12 @@
               type="file"
               id="fileInput"
               class="hidden"
-              accept=".pdf,.txt,.md"
+              accept=".pdf,.docx,.xlsx,.txt,.md"
+              multiple
             />
           </div>
 
-          <div id="fileStatus" class="file-status hidden">
-            <span id="fileNameDisplay">document.pdf</span>
-            <span class="tag">Indexed &amp; Redacted</span>
-          </div>
+          <div id="fileList" class="file-list"></div>
         </div>
 
         <div class="card glass guardrails">
@@ -676,61 +761,163 @@
     </main>
 
     <script>
+      // Must be listed in LOCALMIND_MODELS on the server (default: "llama3").
+      const MODEL = "llama3";
+
       const dropzone = document.getElementById("dropzone");
       const fileInput = document.getElementById("fileInput");
-      const fileStatus = document.getElementById("fileStatus");
-      const fileNameDisplay = document.getElementById("fileNameDisplay");
+      const fileList = document.getElementById("fileList");
       const chatForm = document.getElementById("chatForm");
       const queryInput = document.getElementById("queryInput");
       const sendBtn = document.getElementById("sendBtn");
       const chatContainer = document.getElementById("chatContainer");
 
-      // Build a chat message with textContent (never innerHTML), so user input
-      // and model output can't inject markup.
+      const files = new Map(); // filename -> { row, tag, note }
+
+      function scrollDown() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+
+      // Messages are built with textContent (never innerHTML), so user input,
+      // document text and model output can't inject markup.
       function addMessage(kind, text) {
         const row = document.createElement("div");
         row.className = "msg" + (kind === "me" ? " user" : "");
 
-        if (kind !== "me") {
+        const bubble = document.createElement("div");
+        const style = kind === "loading" ? "ai loading" : kind;
+        bubble.className = "bubble " + style + (kind === "me" ? "" : " glass");
+        bubble.textContent = text;
+
+        let stack = null;
+        if (kind === "me") {
+          row.appendChild(bubble);
+        } else {
           const avatar = document.createElement("div");
           avatar.className = "avatar" + (kind === "err" ? " error" : "");
           avatar.textContent = kind === "err" ? "!" : "AI";
-          row.appendChild(avatar);
+          stack = document.createElement("div");
+          stack.className = "stack";
+          stack.appendChild(bubble);
+          row.append(avatar, stack);
         }
 
-        const bubble = document.createElement("div");
-        bubble.className = "bubble " + kind + (kind === "me" ? "" : " glass");
-        bubble.textContent = text;
-        row.appendChild(bubble);
-
         chatContainer.appendChild(row);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-        return row;
+        scrollDown();
+        return { row, bubble, stack };
+      }
+
+      function renderSources(stack, sources) {
+        if (!sources.length) return;
+        const names = new Set(sources.map((s) => s.file));
+
+        const details = document.createElement("details");
+        details.className = "sources";
+        const summary = document.createElement("summary");
+        summary.textContent =
+          "Sources: " +
+          names.size +
+          (names.size === 1 ? " file, " : " files, ") +
+          sources.length +
+          (sources.length === 1 ? " passage" : " passages");
+        details.appendChild(summary);
+
+        const list = document.createElement("ul");
+        for (const s of sources) {
+          const item = document.createElement("li");
+          const name = document.createElement("span");
+          name.className = "src-name";
+          name.textContent =
+            s.file +
+            (typeof s.part === "number"
+              ? " (part " + s.part + ")"
+              : " (" + s.part + ")");
+          const snip = document.createElement("span");
+          snip.className = "src-snip";
+          snip.textContent = s.snippet + (s.snippet.length >= 200 ? "…" : "");
+          item.append(name, snip);
+          list.appendChild(item);
+        }
+        details.appendChild(list);
+        stack.appendChild(details);
+        scrollDown();
+      }
+
+      async function errorDetail(res) {
+        try {
+          const data = await res.json();
+          if (typeof data.detail === "string") return data.detail;
+        } catch (_) {}
+        return "The server returned an error (" + res.status + ").";
+      }
+
+      // ---------- Documents ----------
+      function fileRow(name) {
+        if (files.has(name)) return files.get(name);
+        const row = document.createElement("div");
+        row.className = "file-status";
+        const label = document.createElement("span");
+        label.textContent = name;
+        const tag = document.createElement("span");
+        tag.className = "tag";
+        const note = document.createElement("span");
+        note.className = "file-note hidden";
+        row.append(label, tag, note);
+        fileList.appendChild(row);
+        const entry = { row, tag, note };
+        files.set(name, entry);
+        return entry;
       }
 
       async function uploadFile(file) {
-        fileNameDisplay.textContent = file.name;
-        fileStatus.classList.remove("hidden");
+        const { row, tag, note } = fileRow(file.name);
+        row.classList.remove("failed");
+        row.classList.add("busy");
+        note.classList.add("hidden");
+        tag.textContent = "Indexing…";
 
         const formData = new FormData();
         formData.append("file", file);
 
         try {
-          const response = await fetch("/api/ingest", {
+          const res = await fetch("/api/ingest", {
             method: "POST",
             body: formData,
           });
-          const data = await response.json();
-          console.log("Ingestion success:", data);
+          if (!res.ok) throw new Error(await errorDetail(res));
+          const data = await res.json();
+          tag.textContent =
+            "Indexed, " +
+            data.chunks +
+            " chunks, " +
+            data.pii_redactions_made +
+            " redacted";
+          if (data.semantic_search === false) {
+            note.textContent =
+              "Semantic search is unavailable for this file (embedding model not reachable). Keyword search only.";
+            note.classList.remove("hidden");
+          }
         } catch (err) {
-          console.error("Ingestion failed:", err);
+          row.classList.add("failed");
+          tag.textContent = "Failed";
+          note.textContent =
+            err instanceof TypeError
+              ? "Can't reach the LocalMind server. Make sure it is running."
+              : err.message;
+          note.classList.remove("hidden");
+        } finally {
+          row.classList.remove("busy");
         }
       }
 
-      dropzone.addEventListener("click", () => fileInput.click());
+      async function uploadAll(fileListLike) {
+        for (const f of Array.from(fileListLike)) await uploadFile(f);
+      }
 
-      fileInput.addEventListener("change", (e) => {
-        if (e.target.files.length > 0) uploadFile(e.target.files[0]);
+      dropzone.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", async (e) => {
+        await uploadAll(e.target.files);
+        fileInput.value = ""; // allow re-selecting the same file
       });
 
       ["dragenter", "dragover"].forEach((evt) =>
@@ -745,42 +932,88 @@
           dropzone.classList.remove("dragover");
         }),
       );
-      dropzone.addEventListener("drop", (e) => {
-        if (e.dataTransfer.files.length > 0)
-          uploadFile(e.dataTransfer.files[0]);
-      });
+      dropzone.addEventListener("drop", (e) => uploadAll(e.dataTransfer.files));
+
+      // Show documents the server already holds (e.g. after a page refresh).
+      fetch("/api/documents")
+        .then((r) => (r.ok ? r.json() : { documents: [] }))
+        .then((d) => {
+          for (const name of d.documents)
+            fileRow(name).tag.textContent = "Indexed";
+        })
+        .catch(() => {});
+
+      // ---------- Questions ----------
+      async function ask(text) {
+        addMessage("me", text);
+
+        if (files.size === 0) {
+          addMessage("ai", "Upload a document first, then ask your question.");
+          return;
+        }
+
+        const pending = addMessage("loading", "Searching your documents…");
+        const { bubble, stack } = pending;
+
+        try {
+          const res = await fetch("/api/query/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: text, model: MODEL }),
+          });
+          if (!res.ok) throw new Error(await errorDetail(res));
+
+          // Headers arrive once retrieval is done; generation starts after.
+          let sources = [];
+          try {
+            sources = JSON.parse(
+              decodeURIComponent(res.headers.get("X-Sources") || "[]"),
+            );
+          } catch (_) {}
+          bubble.textContent = "Generating answer…";
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let gotText = false;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!gotText) {
+              bubble.textContent = "";
+              bubble.classList.remove("loading");
+              gotText = true;
+            }
+            bubble.textContent += decoder.decode(value, { stream: true });
+            scrollDown();
+          }
+          bubble.textContent += decoder.decode();
+
+          if (!gotText) {
+            bubble.classList.remove("loading");
+            bubble.textContent = "The model returned no answer.";
+          } else {
+            renderSources(stack, sources);
+          }
+        } catch (err) {
+          console.error("Query error:", err);
+          pending.row.remove();
+          addMessage(
+            "err",
+            err instanceof TypeError
+              ? "Can't reach the LocalMind server. Make sure it is running."
+              : err.message,
+          );
+        }
+      }
 
       chatForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const text = queryInput.value.trim();
         if (!text) return;
-
-        addMessage("me", text);
         queryInput.value = "";
         sendBtn.disabled = true;
-
-        const loading = addMessage("loading", "Querying local llama3 model...");
-        loading.querySelector(".bubble").classList.add("ai", "glass");
-
         try {
-          const response = await fetch("/api/query", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: text, model: "llama3" }),
-          });
-          const data = await response.json();
-          loading.remove();
-          addMessage(
-            "ai",
-            data.response || data.answer || JSON.stringify(data),
-          );
-        } catch (err) {
-          console.error("Query error:", err);
-          loading.remove();
-          addMessage(
-            "err",
-            "Error connecting to FastAPI backend. Ensure your python server is running.",
-          );
+          await ask(text);
         } finally {
           sendBtn.disabled = false;
           queryInput.focus();

@@ -28,18 +28,26 @@ class Retriever:
         self.idf = {}
         self.avgdl = 0
         self.N = 0
+        # Per-chunk term counts and lengths, aligned with self.chunks.
+        # Built once when documents change, so a query never re-tokenizes text.
+        self._tf: list[Counter] = []
+        self._dl: list[int] = []
+        # Original (redacted) text of each document, kept so small workspaces can be
+        # sent to the model whole instead of as overlapping chunks.
+        self.docs: dict[str, str] = {}
 
     def add_document(self, name: str, text: str, chunk_size: int = 300, overlap: int = 50) -> int:
         """Synchronously chunks a document and updates BM25 statistics. Returns number of chunks."""
         self.chunks = [c for c in self.chunks if c.doc != name]
+        self.docs[name] = text
         words = text.split()
         new_chunks = []
-        start_idx = len(self.chunks)
         
         for i in range(0, len(words), chunk_size - overlap):
             chunk_text = " ".join(words[i:i + chunk_size])
             if chunk_text.strip():
-                chunk = Chunk(doc=name, index=start_idx + len(new_chunks), text=chunk_text)
+                # index is the position inside this document (0, 1, 2, ...)
+                chunk = Chunk(doc=name, index=len(new_chunks), text=chunk_text)
                 new_chunks.append(chunk)
 
         self.chunks.extend(new_chunks)
@@ -49,50 +57,65 @@ class Retriever:
     def remove_document(self, name: str) -> None:
         """Removes a document's chunks and recomputes BM25 statistics."""
         self.chunks = [c for c in self.chunks if c.doc != name]
+        self.docs.pop(name, None)
         self._recompute_bm25_stats()
+
+    def total_words(self) -> int:
+        return sum(len(t.split()) for t in self.docs.values())
+
+    def full_context(self) -> tuple[str, list[dict]]:
+        """Whole documents in upload order, plus matching source entries."""
+        parts, sources = [], []
+        for name, text in self.docs.items():
+            parts.append(f"=== File: {name} (complete) ===\n{text}")
+            sources.append({"file": name, "part": "whole document", "snippet": text[:200]})
+        return "\n\n".join(parts), sources
 
     def _recompute_bm25_stats(self):
         self.N = len(self.chunks)
+        self.doc_freqs.clear()
+        self.idf.clear()
+        self._tf = []
+        self._dl = []
         if self.N == 0:
-            self.doc_freqs.clear()
-            self.idf.clear()
             self.avgdl = 0
             return
 
-        self.doc_freqs.clear()
-        doc_lens = []
         for chunk in self.chunks:
             tokens = tokenize(chunk.text)
-            doc_lens.append(len(tokens))
+            self._tf.append(Counter(tokens))
+            self._dl.append(len(tokens))
             for t in set(tokens):
                 self.doc_freqs[t] += 1
 
-        self.avgdl = sum(doc_lens) / self.N if self.N > 0 else 0
+        self.avgdl = sum(self._dl) / self.N
         for term, freq in self.doc_freqs.items():
             self.idf[term] = math.log(1 + (self.N - freq + 0.5) / (freq + 0.5))
 
     def search(self, query: str, k: int = 5, fallback: bool = True) -> list[Chunk]:
         """Performs lexical BM25 search over chunks."""
-        query_tokens = tokenize(query)
+        # Safety net: if chunks were changed without going through add/remove.
+        if len(self._tf) != len(self.chunks):
+            self._recompute_bm25_stats()
+
+        query_tokens = [t for t in tokenize(query) if t in self.idf]
         scores = {}
-        
-        for idx, chunk in enumerate(self.chunks):
-            tokens = tokenize(chunk.text)
-            dl = len(tokens)
-            tf = Counter(tokens)
-            score = 0.0
-            
-            for qt in query_tokens:
-                if qt not in self.idf:
-                    continue
-                f = tf[qt]
-                num = f * (self.k1 + 1)
-                den = f + self.k1 * (1 - self.b + self.b * (dl / self.avgdl if self.avgdl > 0 else 1))
-                score += self.idf[qt] * (num / den)
-                
-            if score > 0:
-                scores[idx] = score
-                
+
+        if query_tokens:
+            for idx in range(len(self.chunks)):
+                tf = self._tf[idx]
+                dl = self._dl[idx]
+                norm = 1 - self.b + self.b * (dl / self.avgdl if self.avgdl > 0 else 1)
+                score = 0.0
+
+                for qt in query_tokens:
+                    f = tf.get(qt, 0)
+                    if f:
+                        score += self.idf[qt] * (f * (self.k1 + 1)) / (f + self.k1 * norm)
+
+                if score > 0:
+                    scores[idx] = score
+
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         results = [self.chunks[idx] for idx, score in ranked[:k]]
         
