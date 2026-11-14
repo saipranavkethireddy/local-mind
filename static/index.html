@@ -1,124 +1,598 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LocalMind 🛡️ — Private Air-Gapped AI Workbench</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {
-              darker: "#090a0f",
-              cardbg: "rgba(18, 20, 32, 0.65)",
-              bordercolor: "rgba(255, 255, 255, 0.08)",
-            },
-          },
-        },
-      };
-    </script>
     <style>
-      .glass-panel {
-        background: rgba(18, 20, 32, 0.65);
+      :root {
+        --bg: #090a0f;
+        --panel: rgba(18, 20, 32, 0.65);
+        --line: rgba(255, 255, 255, 0.08);
+        --text: #f4f4f5;
+        --text-2: #e4e4e7;
+        --text-3: #d4d4d8;
+        --muted: #a1a1aa;
+        --faint: #71717a;
+        --zinc-700: #3f3f46;
+        --zinc-800: #27272a;
+        --zinc-900: #18181b;
+        --zinc-950: #09090b;
+        --em-200: #a7f3d0;
+        --em-300: #6ee7b7;
+        --em-400: #34d399;
+        --em-500: #10b981;
+        --red-300: #fca5a5;
+        --red-400: #f87171;
+        --font-sans:
+          ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        --font-mono:
+          ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+          monospace;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      ::selection {
+        background: var(--em-500);
+        color: #000;
+      }
+
+      .glass {
+        background: var(--panel);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--line);
       }
-      .glow-accent {
-        box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.15);
+
+      .mono {
+        font-family: var(--font-mono);
+      }
+
+      /* ---------- Header ---------- */
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.5rem;
+        border-width: 0 0 1px 0;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .pulse-dot {
+        width: 0.75rem;
+        height: 0.75rem;
+        border-radius: 50%;
+        background: var(--em-500);
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      @keyframes pulse {
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .brand-name {
+        font-family: var(--font-mono);
+        font-size: 1.125rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        color: #fff;
+      }
+
+      .badge {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        padding: 0.125rem 0.5rem;
+        border-radius: 9999px;
+        color: var(--em-400);
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+      }
+
+      .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .topbar-right strong {
+        color: var(--text-2);
+      }
+
+      .status-pill {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.375rem;
+        background: rgba(24, 24, 27, 0.8);
+        border: 1px solid var(--zinc-800);
+        color: var(--em-400);
+      }
+
+      .status-pill i {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: var(--em-400);
+      }
+
+      /* ---------- Layout ---------- */
+      .workspace {
+        max-width: 80rem;
+        margin: 0 auto;
+        padding: 1rem;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .card {
+        border-radius: 1rem;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        box-shadow:
+          0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      }
+
+      .card-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--text-2);
+      }
+
+      .card-title svg,
+      .console-title svg {
+        width: 1rem;
+        height: 1rem;
+        color: var(--em-400);
+      }
+
+      /* ---------- Dropzone ---------- */
+      .dropzone {
+        border: 2px dashed rgba(63, 63, 70, 0.6);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        background: rgba(24, 24, 27, 0.3);
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+
+      .dropzone:hover,
+      .dropzone.dragover {
+        border-color: rgba(16, 185, 129, 0.5);
+      }
+
+      .dropzone-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 3rem;
+        height: 3rem;
+        margin: 0 auto 0.75rem;
+        border-radius: 0.75rem;
+        background: rgba(39, 39, 42, 0.8);
+        color: var(--muted);
+        transition:
+          background 0.15s,
+          color 0.15s;
+      }
+
+      .dropzone-icon svg {
+        width: 1.5rem;
+        height: 1.5rem;
+      }
+
+      .dropzone:hover .dropzone-icon,
+      .dropzone.dragover .dropzone-icon {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--em-400);
+      }
+
+      .dropzone p {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--text-3);
+      }
+
+      .dropzone p u {
+        color: var(--em-400);
+      }
+
+      .dropzone small {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 10px;
+        color: var(--faint);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .file-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        border-radius: 0.75rem;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--em-300);
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+      }
+
+      .file-status span:first-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .file-status .tag {
+        flex-shrink: 0;
+        font-size: 10px;
+        padding: 0.125rem 0.5rem;
+        border-radius: 0.25rem;
+        color: var(--em-200);
+        background: rgba(16, 185, 129, 0.2);
+      }
+
+      /* ---------- Guardrails ---------- */
+      .guardrails {
+        flex-grow: 1;
+        gap: 0.75rem;
+      }
+
+      .guardrails h3 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .guardrail-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .guardrail-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.625rem;
+        border-radius: 0.5rem;
+        background: rgba(24, 24, 27, 0.4);
+        border: 1px solid rgba(39, 39, 42, 0.6);
+      }
+
+      .guardrail-row span:last-child {
+        font-family: var(--font-mono);
+        color: var(--em-400);
+      }
+
+      /* ---------- Console ---------- */
+      .console {
+        display: flex;
+        flex-direction: column;
+        height: 70vh;
+        border-radius: 1rem;
+        overflow: hidden;
+        box-shadow:
+          0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      }
+
+      .console-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.5rem;
+        background: rgba(24, 24, 27, 0.4);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .console-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--text-3);
+      }
+
+      .console-head .model {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--faint);
+      }
+
+      .chat {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        font-size: 0.875rem;
+      }
+
+      .msg {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+
+      .msg.user {
+        justify-content: flex-end;
+      }
+
+      .avatar {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 0.5rem;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--em-400);
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+      }
+
+      .avatar.error {
+        color: var(--red-400);
+        background: rgba(239, 68, 68, 0.1);
+        border-color: rgba(239, 68, 68, 0.3);
+      }
+
+      .bubble {
+        max-width: 42rem;
+        padding: 1rem;
+        font-size: 0.75rem;
+        line-height: 1.625;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .bubble.ai {
+        border-radius: 1rem 1rem 1rem 0;
+        color: var(--text-2);
+        border: 1px solid rgba(39, 39, 42, 0.8);
+      }
+
+      .bubble.me {
+        border-radius: 1rem 1rem 0 1rem;
+        color: var(--text);
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+      }
+
+      .bubble.loading {
+        color: var(--muted);
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      .bubble.err {
+        border-radius: 1rem 1rem 1rem 0;
+        color: var(--red-300);
+        border: 1px solid rgba(153, 27, 27, 0.8);
+      }
+
+      /* ---------- Input bar ---------- */
+      .inputbar {
+        padding: 1rem;
+        background: rgba(24, 24, 27, 0.6);
+        border-top: 1px solid var(--line);
+      }
+
+      .inputbar form {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .inputbar input {
+        flex-grow: 1;
+        min-width: 0;
+        padding: 0.75rem 1rem;
+        border-radius: 0.75rem;
+        font: inherit;
+        font-size: 0.75rem;
+        color: var(--text);
+        background: var(--zinc-950);
+        border: 1px solid var(--zinc-800);
+        outline: none;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+
+      .inputbar input::placeholder {
+        color: var(--faint);
+      }
+
+      .inputbar input:focus {
+        border-color: rgba(16, 185, 129, 0.6);
+        box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.6);
+      }
+
+      .send {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        border: 0;
+        border-radius: 0.75rem;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #000;
+        background: var(--em-500);
+        box-shadow:
+          0 10px 15px -3px rgba(16, 185, 129, 0.1),
+          0 4px 6px -4px rgba(16, 185, 129, 0.1);
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .send:hover {
+        background: var(--em-400);
+      }
+
+      .send:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .send svg {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--em-400);
+        outline-offset: 2px;
+      }
+
+      /* ---------- Breakpoints ---------- */
+      @media (max-width: 639px) {
+        .hide-sm {
+          display: none;
+        }
+      }
+
+      @media (min-width: 768px) {
+        .workspace {
+          padding: 1.5rem;
+        }
+        .bubble,
+        .inputbar input {
+          font-size: 0.875rem;
+        }
+      }
+
+      @media (min-width: 1024px) {
+        .workspace {
+          grid-template-columns: repeat(12, minmax(0, 1fr));
+          height: calc(100vh - 5rem);
+        }
+        .sidebar {
+          grid-column: span 4;
+          height: 100%;
+        }
+        .console {
+          grid-column: span 8;
+          height: 100%;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .pulse-dot,
+        .bubble.loading {
+          animation: none;
+        }
       }
     </style>
   </head>
-  <body
-    class="bg-darker text-zinc-100 min-h-screen font-sans antialiased selection:bg-emerald-500 selection:text-black"
-  >
-    <!-- Top Navigation Bar -->
-    <header
-      class="border-b border-bordercolor glass-panel sticky top-0 z-50 px-6 py-4 flex items-center justify-between"
-    >
-      <div class="flex items-center space-x-3">
-        <div class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></div>
-        <span class="font-bold text-lg tracking-tight text-white font-mono"
-          >LocalMind<span class="text-emerald-400">.ai</span></span
-        >
-        <span
-          class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono"
-          >Air-Gapped & Secure</span
-        >
+  <body>
+    <header class="topbar glass">
+      <div class="brand">
+        <div class="pulse-dot"></div>
+        <span class="brand-name">LocalMind</span>
+        <span class="badge">Air-Gapped &amp; Secure</span>
       </div>
-      <div class="flex items-center space-x-4 text-xs font-mono text-zinc-400">
-        <span class="hidden sm:inline"
-          >Runtime: <strong class="text-zinc-200">Ollama (llama3)</strong></span
-        >
-        <span
-          class="flex items-center space-x-1.5 bg-zinc-900/80 px-3 py-1 rounded-md border border-zinc-800"
-        >
-          <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-          <span class="text-emerald-400">Localhost Active</span>
-        </span>
+      <div class="topbar-right">
+        <span class="hide-sm">Runtime: <strong>Ollama (llama3)</strong></span>
+        <span class="status-pill"><i></i>Localhost Active</span>
       </div>
     </header>
 
-    <!-- Main Workspace Layout -->
-    <main
-      class="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-5rem)]"
-    >
-      <!-- Left Sidebar: Document Ingestion & Context -->
-      <section class="lg:col-span-4 flex flex-col space-y-6 h-full">
-        <div
-          class="glass-panel rounded-2xl p-5 flex flex-col space-y-4 shadow-xl"
-        >
-          <h2
-            class="text-sm font-semibold text-zinc-200 uppercase tracking-wider flex items-center space-x-2"
-          >
-            <svg
-              class="w-4 h-4 text-emerald-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+    <main class="workspace">
+      <!-- Left: ingestion + guardrails -->
+      <section class="sidebar">
+        <div class="card glass">
+          <h2 class="card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              ></path>
+              />
             </svg>
             <span>Document Ingestion</span>
           </h2>
 
-          <!-- Dropzone -->
-          <div
-            id="dropzone"
-            class="border-2 border-dashed border-zinc-700/60 hover:border-emerald-500/50 rounded-xl p-6 text-center transition-all cursor-pointer bg-zinc-900/30 group"
-          >
-            <div
-              class="mx-auto flex items-center justify-center h-12 w-12 rounded-xl bg-zinc-800/80 group-hover:bg-emerald-500/10 text-zinc-400 group-hover:text-emerald-400 transition-colors mb-3"
-            >
-              <svg
-                class="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+          <div id="dropzone" class="dropzone">
+            <div class="dropzone-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
                   d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                ></path>
+                />
               </svg>
             </div>
-            <p class="text-xs text-zinc-300 font-medium">
-              Drop your resume or PDF here, or
-              <span class="text-emerald-400 underline">browse</span>
-            </p>
-            <p class="text-[10px] text-zinc-500 mt-1">
-              Processed locally with automated PII redaction
-            </p>
+            <p>Drop your resume or PDF here, or <u>browse</u></p>
+            <small>Processed locally with automated PII redaction</small>
             <input
               type="file"
               id="fileInput"
@@ -127,131 +601,73 @@
             />
           </div>
 
-          <!-- Status / Loaded Files List -->
-          <div
-            id="fileStatus"
-            class="hidden text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 p-3 rounded-xl flex items-center justify-between font-mono"
-          >
-            <span id="fileNameDisplay" class="truncate">document.pdf</span>
-            <span
-              class="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-200"
-              >Indexed & Redacted</span
-            >
+          <div id="fileStatus" class="file-status hidden">
+            <span id="fileNameDisplay">document.pdf</span>
+            <span class="tag">Indexed &amp; Redacted</span>
           </div>
         </div>
 
-        <!-- Security & Privacy Guardrail Panel -->
-        <div
-          class="glass-panel rounded-2xl p-5 flex flex-col space-y-3 shadow-xl flex-grow"
-        >
-          <h3
-            class="text-xs font-semibold text-zinc-400 uppercase tracking-wider"
-          >
-            Privacy Guardrails
-          </h3>
-          <div class="space-y-2 text-xs text-zinc-400">
-            <div
-              class="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900/40 border border-zinc-800/60"
-            >
-              <span>PII Scrubbing (Regex)</span>
-              <span class="text-emerald-400 font-mono">Active</span>
+        <div class="card glass guardrails">
+          <h3>Privacy Guardrails</h3>
+          <div class="guardrail-list">
+            <div class="guardrail-row">
+              <span>PII Scrubbing (Regex)</span><span>Active</span>
             </div>
-            <div
-              class="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900/40 border border-zinc-800/60"
-            >
-              <span>External Telemetry</span>
-              <span class="text-emerald-400 font-mono">Disabled</span>
+            <div class="guardrail-row">
+              <span>External Telemetry</span><span>Disabled</span>
             </div>
-            <div
-              class="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900/40 border border-zinc-800/60"
-            >
-              <span>Execution Mode</span>
-              <span class="text-emerald-400 font-mono">Air-Gapped</span>
+            <div class="guardrail-row">
+              <span>Execution Mode</span><span>Air-Gapped</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Right Section: Interactive Chat / Query Console -->
-      <section
-        class="lg:col-span-8 flex flex-col h-full glass-panel rounded-2xl shadow-xl overflow-hidden"
-      >
-        <!-- Chat Header -->
-        <div
-          class="px-6 py-4 border-b border-bordercolor bg-zinc-900/40 flex items-center justify-between"
-        >
-          <div class="flex items-center space-x-2">
-            <svg
-              class="w-4 h-4 text-emerald-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+      <!-- Right: query console -->
+      <section class="console glass">
+        <div class="console-head">
+          <div class="console-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
                 d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-              ></path>
+              />
             </svg>
-            <span
-              class="text-xs font-semibold uppercase tracking-wider text-zinc-300"
-              >Query Console</span
-            >
+            <span>Query Console</span>
           </div>
-          <span class="text-[10px] font-mono text-zinc-500"
-            >Model: llama3:latest</span
-          >
+          <span class="model">Model: llama3:latest</span>
         </div>
 
-        <!-- Messages Stream Area -->
-        <div
-          id="chatContainer"
-          class="flex-grow p-6 overflow-y-auto space-y-4 font-sans text-sm"
-        >
-          <!-- Initial Assistant Greeting -->
-          <div class="flex items-start space-x-3">
-            <div
-              class="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-mono text-xs font-bold flex-shrink-0"
-            >
-              AI
-            </div>
-            <div
-              class="glass-panel p-4 rounded-2xl rounded-tl-none max-w-2xl text-zinc-200 text-xs md:text-sm leading-relaxed border border-zinc-800/80"
-            >
-              Welcome to <strong>LocalMind</strong>. Upload your document on the
-              left, and ask anything about it. All computations run securely on
-              your local Ollama engine.
+        <div id="chatContainer" class="chat">
+          <div class="msg">
+            <div class="avatar">AI</div>
+            <div class="bubble ai glass">
+              Welcome to LocalMind. Upload your document on the left, and ask
+              anything about it. All computations run securely on your local
+              Ollama engine.
             </div>
           </div>
         </div>
 
-        <!-- Input Bar -->
-        <div class="p-4 border-t border-bordercolor bg-zinc-900/60">
-          <form id="chatForm" class="flex items-center space-x-3">
+        <div class="inputbar">
+          <form id="chatForm">
             <input
               type="text"
               id="queryInput"
               placeholder="Ask a question about your document..."
-              class="flex-grow bg-zinc-950 border border-zinc-800 focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/60 rounded-xl px-4 py-3 text-xs md:text-sm text-zinc-100 placeholder-zinc-500 outline-none transition-all"
+              autocomplete="off"
             />
-            <button
-              type="submit"
-              class="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-5 py-3 rounded-xl text-xs transition-all flex items-center space-x-2 shadow-lg shadow-emerald-500/10 font-mono"
-            >
+            <button type="submit" class="send" id="sendBtn">
               <span>Send</span>
-              <svg
-                class="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
                   d="M14 5l7 7m0 0l-7 7m7-7H3"
-                ></path>
+                />
               </svg>
             </button>
           </form>
@@ -259,8 +675,6 @@
       </section>
     </main>
 
-    <!-- Basic UI Interaction Script -->
-    <!-- Real Backend Integration Script -->
     <script>
       const dropzone = document.getElementById("dropzone");
       const fileInput = document.getElementById("fileInput");
@@ -268,103 +682,108 @@
       const fileNameDisplay = document.getElementById("fileNameDisplay");
       const chatForm = document.getElementById("chatForm");
       const queryInput = document.getElementById("queryInput");
+      const sendBtn = document.getElementById("sendBtn");
       const chatContainer = document.getElementById("chatContainer");
 
-      // Handle file drop/browse click
+      // Build a chat message with textContent (never innerHTML), so user input
+      // and model output can't inject markup.
+      function addMessage(kind, text) {
+        const row = document.createElement("div");
+        row.className = "msg" + (kind === "me" ? " user" : "");
+
+        if (kind !== "me") {
+          const avatar = document.createElement("div");
+          avatar.className = "avatar" + (kind === "err" ? " error" : "");
+          avatar.textContent = kind === "err" ? "!" : "AI";
+          row.appendChild(avatar);
+        }
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble " + kind + (kind === "me" ? "" : " glass");
+        bubble.textContent = text;
+        row.appendChild(bubble);
+
+        chatContainer.appendChild(row);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        return row;
+      }
+
+      async function uploadFile(file) {
+        fileNameDisplay.textContent = file.name;
+        fileStatus.classList.remove("hidden");
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const response = await fetch("/api/ingest", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json();
+          console.log("Ingestion success:", data);
+        } catch (err) {
+          console.error("Ingestion failed:", err);
+        }
+      }
+
       dropzone.addEventListener("click", () => fileInput.click());
 
-      fileInput.addEventListener("change", async (e) => {
-        if (e.target.files.length > 0) {
-          const file = e.target.files[0];
-          fileNameDisplay.textContent = file.name;
-          fileStatus.classList.remove("hidden");
-
-          // Upload and ingest file to FastAPI backend
-          const formData = new FormData();
-          formData.append("file", file);
-
-          try {
-            const response = await fetch("/api/ingest", {
-              method: "POST",
-              body: formData,
-            });
-            const data = await response.json();
-            console.log("Ingestion success:", data);
-          } catch (err) {
-            console.error("Ingestion failed:", err);
-          }
-        }
+      fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) uploadFile(e.target.files[0]);
       });
 
-      // Handle chat query submission to FastAPI / Ollama backend
+      ["dragenter", "dragover"].forEach((evt) =>
+        dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          dropzone.classList.add("dragover");
+        }),
+      );
+      ["dragleave", "drop"].forEach((evt) =>
+        dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          dropzone.classList.remove("dragover");
+        }),
+      );
+      dropzone.addEventListener("drop", (e) => {
+        if (e.dataTransfer.files.length > 0)
+          uploadFile(e.dataTransfer.files[0]);
+      });
+
       chatForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const text = queryInput.value.trim();
         if (!text) return;
 
-        // Append user message to chat UI
-        const userMsg = document.createElement("div");
-        userMsg.className = "flex items-start space-x-3 justify-end";
-        userMsg.innerHTML = `
-                <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl rounded-tr-none max-w-2xl text-zinc-100 text-xs md:text-sm leading-relaxed">
-                    ${text}
-                </div>
-            `;
-        chatContainer.appendChild(userMsg);
+        addMessage("me", text);
         queryInput.value = "";
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        sendBtn.disabled = true;
 
-        // Append a temporary loading state for the AI response
-        const aiMsg = document.createElement("div");
-        aiMsg.className = "flex items-start space-x-3";
-        aiMsg.id = "loadingMessage";
-        aiMsg.innerHTML = `
-                <div class="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-mono text-xs font-bold flex-shrink-0">AI</div>
-                <div class="glass-panel p-4 rounded-2xl rounded-tl-none max-w-2xl text-zinc-400 text-xs md:text-sm leading-relaxed border border-zinc-800/80 animate-pulse">
-                    Querying local llama3 model...
-                </div>
-            `;
-        chatContainer.appendChild(aiMsg);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        const loading = addMessage("loading", "Querying local llama3 model...");
+        loading.querySelector(".bubble").classList.add("ai", "glass");
 
         try {
-          // Send query to your FastAPI backend endpoint (adjust '/api/query' if your route path differs)
           const response = await fetch("/api/query", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query: text, model: "llama3" }),
           });
-
           const data = await response.json();
-
-          // Remove loading element and replace with actual response
-          document.getElementById("loadingMessage").remove();
-
-          const finalAiMsg = document.createElement("div");
-          finalAiMsg.className = "flex items-start space-x-3";
-          finalAiMsg.innerHTML = `
-                    <div class="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-mono text-xs font-bold flex-shrink-0">AI</div>
-                    <div class="glass-panel p-4 rounded-2xl rounded-tl-none max-w-2xl text-zinc-200 text-xs md:text-sm leading-relaxed border border-zinc-800/80">
-                        ${data.response || data.answer || JSON.stringify(data)}
-                    </div>
-                `;
-          chatContainer.appendChild(finalAiMsg);
-          chatContainer.scrollTop = chatContainer.scrollHeight;
+          loading.remove();
+          addMessage(
+            "ai",
+            data.response || data.answer || JSON.stringify(data),
+          );
         } catch (err) {
           console.error("Query error:", err);
-          document.getElementById("loadingMessage").remove();
-
-          const errorMsg = document.createElement("div");
-          errorMsg.className = "flex items-start space-x-3";
-          errorMsg.innerHTML = `
-                    <div class="h-7 w-7 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 font-mono text-xs font-bold flex-shrink-0">!</div>
-                    <div class="glass-panel p-4 rounded-2xl rounded-tl-none max-w-2xl text-red-300 text-xs md:text-sm leading-relaxed border border-red-800/80">
-                        Error connecting to FastAPI backend. Ensure your python server is running.
-                    </div>
-                `;
-          chatContainer.appendChild(errorMsg);
+          loading.remove();
+          addMessage(
+            "err",
+            "Error connecting to FastAPI backend. Ensure your python server is running.",
+          );
+        } finally {
+          sendBtn.disabled = false;
+          queryInput.focus();
         }
       });
     </script>
