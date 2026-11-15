@@ -153,7 +153,7 @@ change `MODEL` at the top of the script in `static/index.html`.
 
 ### 📊 Measured Performance (Apple Silicon M4)
 
-Tested locally on your hardware running Llama 3 via Ollama:
+Tested locally running Llama 3 via Ollama:
 
 | Metric                  | Value                      | Description                              |
 | :---------------------- | :------------------------- | :--------------------------------------- |
